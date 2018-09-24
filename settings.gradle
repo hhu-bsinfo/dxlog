@@ -1,0 +1,27 @@
+rootProject.name = 'dxlog'
+
+// Development mode switch
+boolean isDevelop = true
+
+// Do not include other builds if this build is included
+if (isDevelop && gradle.parent != null) {
+    return
+}
+
+if (isDevelop && new File('../dxbuild').exists()) {
+    includeBuild('../dxbuild')
+}
+
+if (isDevelop && new File('../dxutils').exists()) {
+    includeBuild '../dxutils'
+}
+
+if (isDevelop && new File('../dxmem').exists()) {
+    includeBuild '../dxmem'
+}
+
+if (isDevelop && new File('../dxnet').exists()) {
+    includeBuild '../dxnet'
+}
+
+

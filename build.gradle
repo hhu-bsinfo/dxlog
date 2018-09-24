@@ -1,0 +1,108 @@
+buildscript {
+    repositories {
+        mavenCentral()
+
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+
+        maven {
+            url "https://dl.bintray.com/hhu-bsinfo/dxram"
+        }
+
+        maven {
+            url 'https://oss.jfrog.org/artifactory/oss-snapshot-local'
+        }
+    }
+
+    dependencies {
+        classpath "de.hhu.bsinfo:dxbuild:0.2.0-SNAPSHOT"
+    }
+}
+
+plugins {
+    id 'maven-publish'
+    id 'com.jfrog.bintray' version '1.8.4'
+    id "com.jfrog.artifactory" version "4.7.5"
+}
+
+apply plugin: 'dxbuild'
+group = 'de.hhu.bsinfo'
+version = '0.5.0' + (Boolean.valueOf(System.getProperty("snapshot")) ? "-SNAPSHOT" : "")
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+mainClassName = 'de.hhu.bsinfo.dxlog.LogThroughputTester'
+
+// add log4j2 config path to default arguments of start script
+applicationDefaultJvmArgs = [
+        '-Dlog4j.configurationFile=file:DXRAM_HOME/config/log4j2.xml'
+]
+
+project.startScripts.with {
+    doLast {
+        unixScript.text = unixScript.text.replace('DXRAM_HOME', '\$APP_HOME')
+    }
+}
+
+// create empty jni folder in dist
+installDist.doLast {
+    project.file("$project.buildDir/dist/$project.name/jni").mkdir()
+}
+
+repositories {
+    mavenCentral()
+
+    maven {
+        url "https://dl.bintray.com/hhu-bsinfo/dxram"
+    }
+
+    maven {
+        url 'https://oss.jfrog.org/artifactory/oss-snapshot-local'
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ["-Werror", "-Xlint:sunapi", "-XDenableSunApiLintControl"]
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+javadoc.failOnError = false
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+dependencies {
+    implementation fileTree(dir: 'lib', include: ['*.jar'])
+
+    compileOnly 'org.projectlombok:lombok:1.18.2'
+
+    implementation 'de.hhu.bsinfo:dxutils:0.5.0-SNAPSHOT'
+    implementation 'de.hhu.bsinfo:dxmem:0.5.0-SNAPSHOT'
+    implementation 'de.hhu.bsinfo:dxnet:0.5.0-SNAPSHOT'
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+}
+
+apply from: 'types.gradle'
+apply from: 'publish.gradle'
+apply from: 'bintray.gradle'
+apply from: 'artifactory.gradle'
+
+
+task wrapper(type: Wrapper) {
+    gradleVersion = "4.10"
+}
