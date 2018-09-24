@@ -59,6 +59,7 @@ public final class LogThroughputTester {
     private static int ms_utilizationReorgPrompt = 75;
     private static int ms_coldDataThresholdSec = 90;
     private static boolean ms_recoveryEnabled = false;
+    private static boolean ms_recoveryDummy = false;
 
     private static int ms_chunkCount;
     private static volatile long ms_timeStartLoading;
@@ -186,7 +187,7 @@ public final class LogThroughputTester {
      *         the program arguments.
      */
     private static void processArgs(final String[] p_arguments) {
-        if (p_arguments.length != 7 && p_arguments.length != 14) {
+        if (p_arguments.length != 7 && p_arguments.length != 15) {
             System.out.println("To execute benchmark:");
             System.out.println("Normal:");
             System.out.println("Args: " + " <access mode (raf, dir or raw)> <chunk count> <chunk size> <batch size> " +
@@ -194,7 +195,7 @@ public final class LogThroughputTester {
             System.out.println("Extended:");
             System.out.println("Args: " + " <access mode (raf, dir or raw)> <chunk count> <chunk size> <batch size> " +
                     "<workload (none, sequential, random, zipf or hotncold)> <number of updates>  <enable recovery>" +
-                    "<timestamps enabled> <segment size in MB> <primary buffer size in MB> " +
+                    "<use recovery dummy> <timestamps enabled> <segment size in MB> <primary buffer size in MB> " +
                     "<secondary log buffer size in KB> <utilization for reorganization activation (in percent)> " +
                     "<utilization to prompt reorganization (in percent)> <cold data threshold in sec>");
             System.exit(-1);
@@ -218,23 +219,24 @@ public final class LogThroughputTester {
         ms_updates = Integer.parseInt(p_arguments[5]);
         ms_recoveryEnabled = Boolean.parseBoolean(p_arguments[6]);
 
-        if (p_arguments.length == 14) {
-            ms_timestampsEnabled = Boolean.parseBoolean(p_arguments[7]);
-            ms_logSegmentSize = Integer.parseInt(p_arguments[8]);
-            ms_primaryBufferSize = Integer.parseInt(p_arguments[9]);
-            ms_secondaryLogBufferSize = Integer.parseInt(p_arguments[10]);
-            ms_utilizationReorgActivation = Integer.parseInt(p_arguments[11]);
-            ms_utilizationReorgPrompt = Integer.parseInt(p_arguments[12]);
-            ms_coldDataThresholdSec = Integer.parseInt(p_arguments[13]);
+        if (p_arguments.length == 15) {
+            ms_recoveryDummy = Boolean.parseBoolean(p_arguments[7]);
+            ms_timestampsEnabled = Boolean.parseBoolean(p_arguments[8]);
+            ms_logSegmentSize = Integer.parseInt(p_arguments[9]);
+            ms_primaryBufferSize = Integer.parseInt(p_arguments[10]);
+            ms_secondaryLogBufferSize = Integer.parseInt(p_arguments[11]);
+            ms_utilizationReorgActivation = Integer.parseInt(p_arguments[12]);
+            ms_utilizationReorgPrompt = Integer.parseInt(p_arguments[13]);
+            ms_coldDataThresholdSec = Integer.parseInt(p_arguments[14]);
         }
 
         System.out.printf("Parameters: access_mode=%s chunk_count=%d chunk_size=%d batch_size=%d " +
-                        "workload=%s updates=%d recovery=%b timestamps=%s segment_size=%d primary_buffer_size=%d " +
-                        "secondary_log_buffer_size=%d reorg_activation_utilization=%d " +
+                        "workload=%s updates=%d recovery=%b dummy=%b timestamps=%s segment_size=%d " +
+                        "primary_buffer_size=%d " + "secondary_log_buffer_size=%d reorg_activation_utilization=%d " +
                         "reorg_prompt_utilization=%d cold_data_threshold_sec=%d\n", ms_accessMode, ms_chunkCount,
                 ms_size,
-                ms_batchSize, ms_workload, ms_updates, ms_recoveryEnabled, ms_timestampsEnabled, ms_logSegmentSize,
-                ms_primaryBufferSize, ms_secondaryLogBufferSize, ms_utilizationReorgActivation,
+                ms_batchSize, ms_workload, ms_updates, ms_recoveryEnabled, ms_recoveryDummy, ms_timestampsEnabled,
+                ms_logSegmentSize, ms_primaryBufferSize, ms_secondaryLogBufferSize, ms_utilizationReorgActivation,
                 ms_utilizationReorgPrompt, ms_coldDataThresholdSec);
     }
 
@@ -254,12 +256,21 @@ public final class LogThroughputTester {
             }
         }
 
+        long kvss;
+        if (ms_recoveryEnabled) {
+            if (!ms_recoveryDummy) {
+                kvss = (long) ms_chunkCount * ms_size +
+                        1024 * 1024 * 1024; // create larger kvs to avoid performance issues
+            } else {
+                kvss = -2;
+            }
+        } else {
+            kvss = -1;
+        }
         ms_dxlog = new DXLog(
                 new DXLogConfig(ms_accessMode, "/dev/raw/raw1", true, ms_timestampsEnabled, 4, ms_logSegmentSize, 256,
                         ms_primaryBufferSize, ms_secondaryLogBufferSize, ms_utilizationReorgActivation,
-                        ms_utilizationReorgPrompt, ms_coldDataThresholdSec), pathLogFiles, ms_backupRangeSize,
-                ms_recoveryEnabled ? (long) ms_chunkCount * ms_size +
-                        1024 * 1024 * 1024 /* create larger kvs to avoid performance issues */ : -1);
+                        ms_utilizationReorgPrompt, ms_coldDataThresholdSec), pathLogFiles, ms_backupRangeSize, kvss);
     }
 
     /**

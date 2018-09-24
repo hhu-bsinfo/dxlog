@@ -131,9 +131,11 @@ public final class DXLog {
 
             createHandlers();
 
-            if (p_kvss != -1) {
+            if (p_kvss > 0) {
                 // Initialize DXMem and get the recovery operation for recovery.
                 m_dxmemRecoveryOp = new DXMem(m_nodeID, p_kvss).recovery();
+            } else if (p_kvss == -2) {
+                m_dxmemRecoveryOp = new RecoveryDummy();
             }
         } else {
             LOGGER.error("Configuration invalid.");
