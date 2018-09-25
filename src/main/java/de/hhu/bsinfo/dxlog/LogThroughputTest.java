@@ -51,8 +51,10 @@ import de.hhu.bsinfo.dxutils.unit.TimeUnit;
 /**
  * Class for testing the logging and reorganization without starting DXRAM. Chunks are NOT send over network.
  * Example:
- * java -Dlog4j.configurationFile=config/log4j2.xml -cp "lib/*"  de.hhu.bsinfo.dxram.log.LogThroughputTester raf
- * 100000 64 10 none 0
+ * java -Dlog4j.configurationFile=config/log4j2.xml -cp "lib/*"
+ * de.hhu.bsinfo.dxlog.LogThroughputTest config/dxlog.conf 268435456 20000000 64 10 none 0 true false
+ * Use asserts for debugging: -ea
+ * For best performance clear disk first: rm /media/ssd/dxram_log/* && sudo fstrim -v /media/ssd/ && sleep 2
  *
  * @author Kevin Beineke, kevin.beineke@hhu.de, 28.01.2018
  */
