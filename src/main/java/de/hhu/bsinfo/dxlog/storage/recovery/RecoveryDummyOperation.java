@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 
-package de.hhu.bsinfo.dxlog;
+package de.hhu.bsinfo.dxlog.storage.recovery;
 
 import de.hhu.bsinfo.dxmem.data.AbstractChunk;
 import de.hhu.bsinfo.dxmem.operations.Recovery;
@@ -24,12 +24,12 @@ import de.hhu.bsinfo.dxmem.operations.Recovery;
  *
  * @author Kevin Beineke, kevin.beineke@hhu.de, 24.09.2018
  */
-public class RecoveryDummy extends Recovery {
+public class RecoveryDummyOperation extends Recovery {
 
     /**
      * Constructor
      */
-    RecoveryDummy() {
+    public RecoveryDummyOperation() {
         super(null);
     }
 
