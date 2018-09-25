@@ -30,7 +30,7 @@ public final class DXLogConfig {
      * "raw" -> direct access to raw partition).
      */
     @Expose
-    private String m_harddriveAccess = "raf";
+    private String m_harddriveAccess = "dir";
 
     /**
      * Path of raw device (only used for harddrive access mode "raw").
@@ -49,10 +49,10 @@ public final class DXLogConfig {
      * (if true, timestamps are used for improved segment selection).
      */
     @Expose
-    private boolean m_useTimestamps = true;
+    private boolean m_useTimestamps = false;
 
     /**
-     * The flash page size of the underlying hardware/harddrive.
+     * The flash page size of the underlying hardware/hard drive.
      */
     @Expose
     private StorageUnit m_flashPageSize = new StorageUnit(4, StorageUnit.KB);
@@ -104,25 +104,13 @@ public final class DXLogConfig {
 
     }
 
-    DXLogConfig(final String p_harddriveAccess, final String p_rawDevicePath, final boolean p_useChecksums,
-            final boolean p_useTimestamps, final int p_flashPageSize, final int p_logSegmentSize,
-            final int p_primaryLogSize, final int p_writeBufferSize, final int p_secondaryLogBufferSize,
-            final int p_utilizationActivateReorganization, final int p_utilizationPromptReorganization,
-            final int p_coldDataThresholdSec) {
-        m_harddriveAccess = p_harddriveAccess;
-        m_rawDevicePath = p_rawDevicePath;
-        m_useChecksums = p_useChecksums;
-        m_useTimestamps = p_useTimestamps;
-        m_flashPageSize = new StorageUnit(p_flashPageSize, StorageUnit.KB);
-        m_logSegmentSize = new StorageUnit(p_logSegmentSize, StorageUnit.MB);
-        m_primaryLogSize = new StorageUnit(p_primaryLogSize, StorageUnit.MB);
-        m_writeBufferSize = new StorageUnit(p_writeBufferSize, StorageUnit.MB);
-        m_secondaryLogBufferSize = new StorageUnit(p_secondaryLogBufferSize, StorageUnit.KB);
-        m_utilizationActivateReorganization = p_utilizationActivateReorganization;
-        m_utilizationPromptReorganization = p_utilizationPromptReorganization;
-        m_coldDataThresholdInSec = p_coldDataThresholdSec;
-    }
-
+    /**
+     * Verify the configuration values
+     *
+     * @param p_backupRangeSize
+     *         the backup range size which is configured elsewhere
+     * @return True if all configuration values are ok, false on invalid value, range or any other error
+     */
     boolean verify(final long p_backupRangeSize) {
         long secondaryLogSize = p_backupRangeSize * 2;
 

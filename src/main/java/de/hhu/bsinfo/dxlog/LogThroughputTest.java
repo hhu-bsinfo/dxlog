@@ -17,10 +17,19 @@
 package de.hhu.bsinfo.dxlog;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Locale;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,9 +37,13 @@ import org.apache.logging.log4j.Logger;
 import de.hhu.bsinfo.dxlog.storage.header.AbstractSecLogEntryHeader;
 import de.hhu.bsinfo.dxmem.data.AbstractChunk;
 import de.hhu.bsinfo.dxmem.data.ChunkByteArray;
+import de.hhu.bsinfo.dxutils.StorageUnitGsonSerializer;
+import de.hhu.bsinfo.dxutils.TimeUnitGsonSerializer;
 import de.hhu.bsinfo.dxutils.serialization.ByteBufferImExporter;
 import de.hhu.bsinfo.dxutils.serialization.ObjectSizeUtil;
 import de.hhu.bsinfo.dxutils.stats.StatisticsManager;
+import de.hhu.bsinfo.dxutils.unit.StorageUnit;
+import de.hhu.bsinfo.dxutils.unit.TimeUnit;
 
 /**
  * Class for testing the logging and reorganization without starting DXRAM. Chunks are NOT send over network.
@@ -40,24 +53,18 @@ import de.hhu.bsinfo.dxutils.stats.StatisticsManager;
  *
  * @author Kevin Beineke, kevin.beineke@hhu.de, 28.01.2018
  */
-public final class LogThroughputTester {
-    private static final Logger LOGGER = LogManager.getFormatterLogger(LogThroughputTester.class.getSimpleName());
+public final class LogThroughputTest {
+    private static final Logger LOGGER = LogManager.getFormatterLogger(LogThroughputTest.class.getSimpleName());
 
     private static DXLog ms_dxlog;
 
+    private static DXLogConfig ms_context;
+
     private static String ms_workload;
     private static int ms_updates;
-    private static int ms_batchSize = 10;
-    private static int ms_size = 64;
-    private static int ms_backupRangeSize = 256 * 1024 * 1024;
-    private static String ms_accessMode = "raf";
-    private static boolean ms_timestampsEnabled = false;
-    private static int ms_logSegmentSize = 8;
-    private static int ms_primaryBufferSize = 32;
-    private static int ms_secondaryLogBufferSize = 128;
-    private static int ms_utilizationReorgActivation = 60;
-    private static int ms_utilizationReorgPrompt = 75;
-    private static int ms_coldDataThresholdSec = 90;
+    private static int ms_batchSize;
+    private static int ms_size;
+    private static int ms_backupRangeSize;
     private static boolean ms_recoveryEnabled = false;
     private static boolean ms_recoveryDummy = false;
 
@@ -71,7 +78,7 @@ public final class LogThroughputTester {
     /**
      * Hidden constructor.
      */
-    private LogThroughputTester() {
+    private LogThroughputTest() {
 
     }
 
@@ -83,6 +90,8 @@ public final class LogThroughputTester {
      */
     public static void main(final String[] p_arguments) {
         Locale.setDefault(new Locale("en", "US"));
+
+        loadConfiguration(p_arguments[0]);
 
         processArgs(p_arguments);
 
@@ -181,63 +190,109 @@ public final class LogThroughputTester {
     }
 
     /**
+     * Load the configuration file.
+     *
+     * @param p_configPath
+     *         Path to configuration file
+     */
+    private static void loadConfiguration(final String p_configPath) {
+        LOGGER.info("Loading configuration '%s'...", p_configPath);
+        ms_context = new DXLogConfig();
+        File file = new File(p_configPath);
+
+        Gson gson = new GsonBuilder().setPrettyPrinting().excludeFieldsWithoutExposeAnnotation()
+                .registerTypeAdapter(StorageUnit.class, new StorageUnitGsonSerializer())
+                .registerTypeAdapter(TimeUnit.class, new TimeUnitGsonSerializer()).create();
+
+        if (!file.exists()) {
+            try {
+                if (!file.createNewFile()) {
+                    LOGGER.error("Creating new config file %s failed", file);
+                    System.exit(-1);
+                }
+            } catch (final IOException e) {
+                LOGGER.error("Creating new config file %s failed: %s", file, e.getMessage());
+                System.exit(-1);
+            }
+
+            String jsonString = gson.toJson(ms_context);
+            try {
+                PrintWriter writer = new PrintWriter(file);
+                writer.print(jsonString);
+                writer.close();
+            } catch (final FileNotFoundException e) {
+                // we can ignored this here, already checked that
+            }
+
+            LOGGER.info("New configuration file created: %s", file);
+        }
+
+        JsonElement element = null;
+
+        try {
+            element = gson.fromJson(new String(Files.readAllBytes(Paths.get(p_configPath))), JsonElement.class);
+        } catch (final Exception e) {
+            LOGGER.error("Could not load configuration '%s': %s", p_configPath, e.getMessage());
+            System.exit(-1);
+        }
+
+        if (element == null) {
+            LOGGER.error("Could not load configuration '%s': empty configuration file", p_configPath);
+            System.exit(-1);
+        }
+
+        try {
+            ms_context = gson.fromJson(element, DXLogConfig.class);
+        } catch (final Exception e) {
+            LOGGER.error("Loading configuration '%s' failed: %s", p_configPath, e.getMessage());
+            System.exit(-1);
+        }
+
+        if (ms_context == null) {
+            LOGGER.error("Loading configuration '%s' failed: context null", p_configPath);
+            System.exit(-1);
+        }
+    }
+
+    /**
      * Process the program arguments.
      *
      * @param p_arguments
      *         the program arguments.
      */
     private static void processArgs(final String[] p_arguments) {
-        if (p_arguments.length != 7 && p_arguments.length != 15) {
+        if (p_arguments.length != 9) {
             System.out.println("To execute benchmark:");
-            System.out.println("Normal:");
-            System.out.println("Args: " + " <access mode (raf, dir or raw)> <chunk count> <chunk size> <batch size> " +
-                    "<workload (none, sequential, random, zipf or hotncold)> <number of updates> <enable recovery>");
-            System.out.println("Extended:");
-            System.out.println("Args: " + " <access mode (raf, dir or raw)> <chunk count> <chunk size> <batch size> " +
-                    "<workload (none, sequential, random, zipf or hotncold)> <number of updates>  <enable recovery>" +
-                    "<use recovery dummy> <timestamps enabled> <segment size in MB> <primary buffer size in MB> " +
-                    "<secondary log buffer size in KB> <utilization for reorganization activation (in percent)> " +
-                    "<utilization to prompt reorganization (in percent)> <cold data threshold in sec>");
+            System.out.println("Args: " + "<config_file> <backup range size> <chunk count> <chunk size> <batch size> " +
+                    "<workload (none, sequential, random, zipf or hotncold)> <number of updates> <enable recovery> " +
+                    "<use recovery dummy>");
             System.exit(-1);
         }
 
-        ms_accessMode = p_arguments[0];
-        if (!"raf".equals(ms_accessMode) && !"dir".equals(ms_accessMode) && !"raw".equals(ms_accessMode)) {
-            System.out.println("Invalid access mode! Using RandomAccessFile.");
-            ms_accessMode = "raf";
-        }
-        ms_chunkCount = Integer.parseInt(p_arguments[1]);
-        ms_size = Integer.parseInt(p_arguments[2]);
-        ms_batchSize = Integer.parseInt(p_arguments[3]);
+        ms_backupRangeSize = Integer.parseInt(p_arguments[1]);
+        ms_chunkCount = Integer.parseInt(p_arguments[2]);
+        ms_size = Integer.parseInt(p_arguments[3]);
+        ms_batchSize = Integer.parseInt(p_arguments[4]);
 
-        ms_workload = p_arguments[4];
+        ms_workload = p_arguments[5];
         if (!"none".equals(ms_workload) && !"sequential".equals(ms_workload) && !"random".equals(ms_workload) &&
                 !"zipf".equals(ms_workload) && !"hotncold".equals(ms_workload)) {
             System.out.println("Invalid workload! Starting with \"none\".");
             ms_workload = "none";
         }
-        ms_updates = Integer.parseInt(p_arguments[5]);
-        ms_recoveryEnabled = Boolean.parseBoolean(p_arguments[6]);
-
-        if (p_arguments.length == 15) {
-            ms_recoveryDummy = Boolean.parseBoolean(p_arguments[7]);
-            ms_timestampsEnabled = Boolean.parseBoolean(p_arguments[8]);
-            ms_logSegmentSize = Integer.parseInt(p_arguments[9]);
-            ms_primaryBufferSize = Integer.parseInt(p_arguments[10]);
-            ms_secondaryLogBufferSize = Integer.parseInt(p_arguments[11]);
-            ms_utilizationReorgActivation = Integer.parseInt(p_arguments[12]);
-            ms_utilizationReorgPrompt = Integer.parseInt(p_arguments[13]);
-            ms_coldDataThresholdSec = Integer.parseInt(p_arguments[14]);
-        }
+        ms_updates = Integer.parseInt(p_arguments[6]);
+        ms_recoveryEnabled = Boolean.parseBoolean(p_arguments[7]);
+        ms_recoveryDummy = Boolean.parseBoolean(p_arguments[8]);
 
         System.out.printf("Parameters: access_mode=%s chunk_count=%d chunk_size=%d batch_size=%d " +
                         "workload=%s updates=%d recovery=%b dummy=%b timestamps=%s segment_size=%d " +
                         "primary_buffer_size=%d " + "secondary_log_buffer_size=%d reorg_activation_utilization=%d " +
-                        "reorg_prompt_utilization=%d cold_data_threshold_sec=%d\n", ms_accessMode, ms_chunkCount,
-                ms_size,
-                ms_batchSize, ms_workload, ms_updates, ms_recoveryEnabled, ms_recoveryDummy, ms_timestampsEnabled,
-                ms_logSegmentSize, ms_primaryBufferSize, ms_secondaryLogBufferSize, ms_utilizationReorgActivation,
-                ms_utilizationReorgPrompt, ms_coldDataThresholdSec);
+                        "reorg_prompt_utilization=%d cold_data_threshold_sec=%d\n", ms_context.getHarddriveAccess(),
+                ms_chunkCount, ms_size, ms_batchSize, ms_workload, ms_updates, ms_recoveryEnabled, ms_recoveryDummy,
+                ms_context.isUseTimestamps(), ms_context.getLogSegmentSize().getBytes(),
+                ms_context.getWriteBufferSize().getBytes(), ms_context.getSecondaryLogBufferSize().getBytes(),
+                ms_context.getUtilizationActivateReorganization(), ms_context.getUtilizationPromptReorganization(),
+                ms_context.getColdDataThresholdInSec());
     }
 
     /**
@@ -267,10 +322,7 @@ public final class LogThroughputTester {
         } else {
             kvss = -1;
         }
-        ms_dxlog = new DXLog(
-                new DXLogConfig(ms_accessMode, "/dev/raw/raw1", true, ms_timestampsEnabled, 4, ms_logSegmentSize, 256,
-                        ms_primaryBufferSize, ms_secondaryLogBufferSize, ms_utilizationReorgActivation,
-                        ms_utilizationReorgPrompt, ms_coldDataThresholdSec), pathLogFiles, ms_backupRangeSize, kvss);
+        ms_dxlog = new DXLog(ms_context, pathLogFiles, ms_backupRangeSize, kvss);
     }
 
     /**

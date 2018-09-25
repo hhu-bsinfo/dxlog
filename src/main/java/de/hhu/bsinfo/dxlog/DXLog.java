@@ -33,6 +33,7 @@ import de.hhu.bsinfo.dxlog.storage.logs.Log;
 import de.hhu.bsinfo.dxlog.storage.logs.LogHandler;
 import de.hhu.bsinfo.dxlog.storage.recovery.FileRecoveryHandler;
 import de.hhu.bsinfo.dxlog.storage.recovery.LogRecoveryHandler;
+import de.hhu.bsinfo.dxlog.storage.recovery.RecoveryDummyOperation;
 import de.hhu.bsinfo.dxlog.storage.recovery.RecoveryMetadata;
 import de.hhu.bsinfo.dxlog.storage.versioncontrol.VersionHandler;
 import de.hhu.bsinfo.dxlog.storage.writebuffer.BufferPool;
@@ -46,7 +47,7 @@ import de.hhu.bsinfo.dxutils.stats.StatisticsManager;
 import de.hhu.bsinfo.dxutils.stats.TimePool;
 
 /**
- * TODO
+ * DXLog: Fast object logging, reorganization and recovery.
  *
  * @author Kevin Beineke, kevin.beineke@hhu.de, 24.09.2018
  */
@@ -135,7 +136,7 @@ public final class DXLog {
                 // Initialize DXMem and get the recovery operation for recovery.
                 m_dxmemRecoveryOp = new DXMem(m_nodeID, p_kvss).recovery();
             } else if (p_kvss == -2) {
-                m_dxmemRecoveryOp = new RecoveryDummy();
+                m_dxmemRecoveryOp = new RecoveryDummyOperation();
             }
         } else {
             LOGGER.error("Configuration invalid.");
@@ -218,6 +219,11 @@ public final class DXLog {
                         (int) m_config.getLogSegmentSize().getBytes(), m_config.isUseChecksums());
     }
 
+    /**
+     * Closes DXLog.
+     *
+     * @return true if successful
+     */
     protected boolean close() {
         m_writeBufferHandler.close();
         m_logHandler.close();
@@ -268,7 +274,6 @@ public final class DXLog {
      * @param p_chunkIDs
      *         the ChunkIDs of all to be deleted chunks
      */
-
     void removeChunks(final short p_rangeID, final short p_owner, final long[] p_chunkIDs) {
         m_versionHandler.invalidateChunks(p_chunkIDs, p_owner, p_rangeID);
     }
