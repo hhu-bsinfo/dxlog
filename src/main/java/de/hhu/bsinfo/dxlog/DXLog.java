@@ -33,12 +33,10 @@ import de.hhu.bsinfo.dxlog.storage.logs.Log;
 import de.hhu.bsinfo.dxlog.storage.logs.LogHandler;
 import de.hhu.bsinfo.dxlog.storage.recovery.FileRecoveryHandler;
 import de.hhu.bsinfo.dxlog.storage.recovery.LogRecoveryHandler;
-import de.hhu.bsinfo.dxlog.storage.recovery.RecoveryDummyOperation;
 import de.hhu.bsinfo.dxlog.storage.recovery.RecoveryMetadata;
 import de.hhu.bsinfo.dxlog.storage.versioncontrol.VersionHandler;
 import de.hhu.bsinfo.dxlog.storage.writebuffer.BufferPool;
 import de.hhu.bsinfo.dxlog.storage.writebuffer.WriteBufferHandler;
-import de.hhu.bsinfo.dxmem.DXMem;
 import de.hhu.bsinfo.dxmem.data.AbstractChunk;
 import de.hhu.bsinfo.dxmem.operations.Recovery;
 import de.hhu.bsinfo.dxnet.core.MessageHeader;
@@ -91,16 +89,17 @@ public final class DXLog {
      *         the directory to store logs in
      * @param p_backupRangeSize
      *         the backup range size
-     * @param p_kvss
-     *         the key-value store size; -1 if memory management is not required
+     * @param p_dxmemRecoveryOp
+     *         the DXMem Recovery operation to store recovered chunk in memory management
      */
-    public DXLog(final DXLogConfig p_config, final String p_backupDir, final int p_backupRangeSize, final long p_kvss) {
+    public DXLog(final DXLogConfig p_config, final short p_nodeID, final String p_backupDir,
+            final int p_backupRangeSize, final Recovery p_dxmemRecoveryOp) {
         if (p_config.verify(p_backupRangeSize)) {
             m_config = p_config;
 
             applyConfiguration(p_config);
 
-            m_nodeID = (short) 1;
+            m_nodeID = p_nodeID;
             m_backupDirectory = p_backupDir;
             m_secondaryLogSize = p_backupRangeSize * 2;
 
@@ -132,12 +131,7 @@ public final class DXLog {
 
             createHandlers();
 
-            if (p_kvss > 0) {
-                // Initialize DXMem and get the recovery operation for recovery.
-                m_dxmemRecoveryOp = new DXMem(m_nodeID, p_kvss).recovery();
-            } else if (p_kvss == -2) {
-                m_dxmemRecoveryOp = new RecoveryDummyOperation();
-            }
+            m_dxmemRecoveryOp = p_dxmemRecoveryOp;
         } else {
             LOGGER.error("Configuration invalid.");
         }
@@ -224,7 +218,7 @@ public final class DXLog {
      *
      * @return true if successful
      */
-    protected boolean close() {
+    public boolean close() {
         m_writeBufferHandler.close();
         m_logHandler.close();
         m_versionHandler.close();
@@ -243,7 +237,7 @@ public final class DXLog {
      * @param p_messageHeader
      *         the message header (the payload is yet to be deserialized)
      */
-    void logChunks(final MessageHeader p_messageHeader) {
+    public void logChunks(final MessageHeader p_messageHeader) {
         m_writeBufferHandler.postData(p_messageHeader);
     }
 
@@ -259,7 +253,7 @@ public final class DXLog {
      * @param p_buffer
      *         the Chunk buffer
      */
-    void logChunks(final short p_owner, final short p_rangeID, final int p_numberOfDataStructures,
+    public void logChunks(final short p_owner, final short p_rangeID, final int p_numberOfDataStructures,
             final ByteBuffer p_buffer) {
         m_writeBufferHandler.postData(p_owner, p_rangeID, p_numberOfDataStructures, p_buffer);
     }
@@ -274,7 +268,7 @@ public final class DXLog {
      * @param p_chunkIDs
      *         the ChunkIDs of all to be deleted chunks
      */
-    void removeChunks(final short p_rangeID, final short p_owner, final long[] p_chunkIDs) {
+    public void removeChunks(final short p_rangeID, final short p_owner, final long[] p_chunkIDs) {
         m_versionHandler.invalidateChunks(p_chunkIDs, p_owner, p_rangeID);
     }
 
@@ -287,7 +281,7 @@ public final class DXLog {
      *         the Chunks' owner
      * @return whether the operation was successful or not
      */
-    boolean initBackupRange(final short p_rangeID, final short p_owner) {
+    public boolean initBackupRange(final short p_rangeID, final short p_owner) {
         return m_logHandler.createBackupRange(p_rangeID, p_owner, m_secondaryLogSize,
                 (int) m_config.getLogSegmentSize().getBytes(), (int) m_config.getSecondaryLogBufferSize().getBytes(),
                 (int) m_config.getFlashPageSize().getBytes(), m_config.getUtilizationPromptReorganization(),
@@ -303,7 +297,7 @@ public final class DXLog {
      *         the Chunks' owner
      * @return whether the backup range is initialized or not
      */
-    boolean initRecoveredBackupRange(final short p_rangeID, final short p_owner, final short p_originalRangeID,
+    public boolean initRecoveredBackupRange(final short p_rangeID, final short p_owner, final short p_originalRangeID,
             final short p_originalOwner, final boolean p_isNewBackupRange) {
         return m_logHandler
                 .createRecoveredBackupRange(p_rangeID, p_owner, p_originalRangeID, p_originalOwner, p_isNewBackupRange,
@@ -367,7 +361,7 @@ public final class DXLog {
      *
      * @return the current utilization
      */
-    String getCurrentUtilization() {
+    public String getCurrentUtilization() {
         return m_logHandler.getCurrentUtilization();
     }
 

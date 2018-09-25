@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import de.hhu.bsinfo.dxutils.unit.StorageUnit;
 
 /**
- * Config for the LogComponent
+ * Config for the DXLog.
  *
- * @author Stefan Nothaas, stefan.nothaas@hhu.de, 24.05.2017
+ * @author Kevin Beineke kevin.beineke@hhu.de, 25.09.2018
  */
 @Data
 @Accessors(prefix = "m_")
@@ -111,7 +111,7 @@ public final class DXLogConfig {
      *         the backup range size which is configured elsewhere
      * @return True if all configuration values are ok, false on invalid value, range or any other error
      */
-    boolean verify(final long p_backupRangeSize) {
+    public boolean verify(final long p_backupRangeSize) {
         long secondaryLogSize = p_backupRangeSize * 2;
 
         if (m_primaryLogSize.getBytes() % m_flashPageSize.getBytes() != 0 ||

@@ -35,8 +35,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import de.hhu.bsinfo.dxlog.storage.header.AbstractSecLogEntryHeader;
+import de.hhu.bsinfo.dxlog.storage.recovery.RecoveryDummyOperation;
+import de.hhu.bsinfo.dxmem.DXMem;
 import de.hhu.bsinfo.dxmem.data.AbstractChunk;
 import de.hhu.bsinfo.dxmem.data.ChunkByteArray;
+import de.hhu.bsinfo.dxmem.operations.Recovery;
 import de.hhu.bsinfo.dxutils.StorageUnitGsonSerializer;
 import de.hhu.bsinfo.dxutils.TimeUnitGsonSerializer;
 import de.hhu.bsinfo.dxutils.serialization.ByteBufferImExporter;
@@ -311,18 +314,18 @@ public final class LogThroughputTest {
             }
         }
 
-        long kvss;
+        short nodeID = (short) 1;
+
+        Recovery op = null;
         if (ms_recoveryEnabled) {
             if (!ms_recoveryDummy) {
-                kvss = (long) ms_chunkCount * ms_size +
-                        1024 * 1024 * 1024; // create larger kvs to avoid performance issues
+                op = new DXMem(nodeID, (long) ms_chunkCount * ms_size + 1024 * 1024 * 1024)
+                        .recovery(); // create larger kvs to avoid performance issues);
             } else {
-                kvss = -2;
+                op = new RecoveryDummyOperation();
             }
-        } else {
-            kvss = -1;
         }
-        ms_dxlog = new DXLog(ms_context, pathLogFiles, ms_backupRangeSize, kvss);
+        ms_dxlog = new DXLog(ms_context, nodeID, pathLogFiles, ms_backupRangeSize, op);
     }
 
     /**
