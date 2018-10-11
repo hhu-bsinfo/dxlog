@@ -192,7 +192,7 @@ public final class ReorganizationThread extends Thread {
             }
             m_reorganizationLock.unlock();
 
-            // Check if there are normal reorganization requests -> reorganize complete secondary logs
+            // Check if there are normal reorganization requests -> reorganize complete secondary logs (no signal)
             m_requestLock.lock();
             if (!m_reorganizationRequests.isEmpty()) {
                 m_requestLock.unlock();
@@ -207,35 +207,12 @@ public final class ReorganizationThread extends Thread {
             m_requestLock.unlock();
 
             if (counter == 0) {
-                // This is the first iteration -> choose secondary log and gather versions
+                // First iteration or counter reset -> choose secondary log and gather versions
                 secondaryLog = chooseLog();
                 if (secondaryLog != null && (secondaryLog.getOccupiedSpace() > m_activateReorganizationThreshold ||
                         secondaryLog.needToBeReorganized())) {
-                    getAccessToSecLog(secondaryLog);
-                    if (!interrupted()) {
-
-                        SOP_REORG_GET_VERSIONS.start();
-
-                        try {
-                            lowestLID = m_versionHandler
-                                    .getCurrentVersions(secondaryLog.getOwner(), secondaryLog.getRangeID(),
-                                            m_allVersions, true);
-                        } catch (IOException e) {
-                            LOGGER.error(e);
-                            SOP_REORG_GET_VERSIONS.stop();
-                            m_recoveryLock.unlock();
-                            continue;
-                        }
-
-                        SOP_REORG_GET_VERSIONS.stop();
-
-                        if (interrupted()) {
-                            m_recoveryLock.unlock();
-                            continue;
-                        }
-
-                        // TODO: flush primary and secondary log buffers
-                    } else {
+                    lowestLID = enterSecondaryLog(secondaryLog);
+                    if (lowestLID == -1 || interrupted()) {
                         m_recoveryLock.unlock();
                         continue;
                     }
@@ -288,6 +265,44 @@ public final class ReorganizationThread extends Thread {
     }
 
     /**
+     * Gets access to a secondary log and reads all current versions.
+     *
+     * @param p_secondaryLog
+     *         the secondary log to enter
+     * @return the lowest local ID or -1
+     */
+    private long enterSecondaryLog(final SecondaryLog p_secondaryLog) {
+        long ret = -1;
+
+        getAccessToSecLog(p_secondaryLog);
+        if (!interrupted()) {
+
+            SOP_REORG_GET_VERSIONS.start();
+
+            try {
+                ret = m_versionHandler
+                        .getCurrentVersions(p_secondaryLog.getOwner(), p_secondaryLog.getRangeID(), m_allVersions,
+                                true);
+            } catch (IOException e) {
+                LOGGER.error(e);
+            }
+
+            SOP_REORG_GET_VERSIONS.stop();
+
+            /* Possible data loss after cluster failure (e.g. power outage):
+               We might remove log entries of a chunk during the reorganization whose current entry has not been written
+               yet because version information can be more current.
+               This is not a problem if we assume battery backup is used which enables flushing all
+               buffers during shut down.
+               Otherwise, we could flush the primary and secondary log buffers here, after reading the versions,
+               to avoid this problem but this might impair reorganization performance.
+             */
+        }
+
+        return ret;
+    }
+
+    /**
      * Process urgent request by reorganizing the entire secondary log.
      *
      * @lock m_reorganizationLock must be acquired
@@ -321,7 +336,15 @@ public final class ReorganizationThread extends Thread {
 
             if (!interrupted()) {
 
-                // TODO: flush primary and secondary log buffers
+
+                /* Possible data loss after cluster failure (e.g. power outage):
+                   We might remove log entries of a chunk during the reorganization whose current entry has not been
+                   written yet because version information can be more current.
+                   This is not a problem if we assume battery backup is used which enables flushing all
+                   buffers during shut down.
+                   Otherwise, we could flush the primary and secondary log buffers here, after reading the versions,
+                   to avoid this problem but this might impair reorganization performance.
+                 */
 
                 reorganizeAll(secondaryLog, m_reorgSegmentData, m_allVersions, lowestLID);
                 secondaryLog.resetReorgSegment();
@@ -394,7 +417,15 @@ public final class ReorganizationThread extends Thread {
 
                 if (!interrupted()) {
 
-                    // TODO: flush primary and secondary log buffers
+
+                    /* Possible data loss after cluster failure (e.g. power outage):
+                       We might remove log entries of a chunk during the reorganization whose current entry has not
+                       been written yet because version information can be more current.
+                       This is not a problem if we assume battery backup is used which enables flushing all
+                       buffers during shut down.
+                       Otherwise, we could flush the primary and secondary log buffers here, after reading the versions,
+                       to avoid this problem but this might impair reorganization performance.
+                     */
 
                     int counter = 0;
                     while (secondaryLog.getOccupiedSpace() > m_activateReorganizationThreshold ||
@@ -747,8 +778,17 @@ public final class ReorganizationThread extends Thread {
                                                 .getMaximumNumberOfVersions(m_secondaryLogSize / 2, 256, false),
                                         readBytes);
 
-                            } else if (currentVersion.isEqual(
-                                    entryVersion)) { /* TODO: do not delete log entry if epoch is current epoch */
+                            } else if (currentVersion.isEqual(entryVersion)) {
+
+                                /* Possible data loss after cluster failure (e.g. power outage):
+                                   We might remove log entries of a chunk here whose current entry has not been written
+                                   yet because version information can be more current.
+                                   This is not a problem if we assume battery backup is used which enables flushing all
+                                   buffers during shut down.
+                                   Otherwise, we could spare all log entries from current epoch to avoid this problem
+                                   but this might impair reorganization performance.
+                                 */
+
                                 // Compare current version with element
                                 if (readBytes != writtenBytes) {
                                     segmentData.position(readBytes);

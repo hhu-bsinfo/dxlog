@@ -61,7 +61,7 @@ public final class FileRecoveryHandler {
         // FIXME: this is very old and has not been tested
 
         /*
-         * IMPORTANT: do not use version log to identify most the recent version of a chunk as the version log might
+         * IMPORTANT: do not use version log to identify the most recent version of a chunk as the version log might
          * have been ahead of the secondary log resulting in not recovering the chunk at all. Instead, cache all
          * chunks from all segments (in a hash table) and overwrite entry if version is higher. Use the version log
          * to determine deleted chunks, only.

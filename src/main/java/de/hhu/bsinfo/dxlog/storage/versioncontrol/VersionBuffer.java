@@ -212,7 +212,6 @@ public final class VersionBuffer extends LongIntHashTable {
         // Increment key to avoid ChunkID 0
         long oldValue = add(p_key + 1, 1);
 
-        // TODO: release lock in a second call after writing the entry to primary log
         m_accessLock.unlock();
 
         if (oldValue != -1) {
@@ -242,8 +241,6 @@ public final class VersionBuffer extends LongIntHashTable {
                     // ChunkIDs at the beginning
                     m_averageLID += ((double) localID - m_averageLID) /
                             (m_numberOfCIDs + 1); // Changed by exclusive message handler, only
-
-                    // TODO: can be 0 for range 0 and sequential update pattern
                 }
             }
             m_numberOfCIDs++;

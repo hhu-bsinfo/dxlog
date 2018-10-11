@@ -37,7 +37,7 @@ public final class RawDiskAccess implements DiskAccessInterface {
 
     @Override
     public void renameLog(File p_file, File p_newFile) throws IOException {
-        // TODO
+        // TODO: rename the log file in JNIFileRaw
     }
 
     @Override

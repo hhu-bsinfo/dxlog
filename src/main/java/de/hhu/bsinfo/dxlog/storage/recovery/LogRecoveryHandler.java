@@ -194,7 +194,7 @@ public final class LogRecoveryHandler {
         short owner = p_secondaryLog.getOwner();
         short originalOwner = p_secondaryLog.getOriginalOwner();
 
-        // FIXME: Recovery fails if versions (partly only?) are stored in hashtable
+        // FIXME: Recovery fails if versions (partly only?) are stored in hash table (migrations or preceding recovery)
 
         if (p_secondaryLog.getOccupiedSpace() == 0) {
 
