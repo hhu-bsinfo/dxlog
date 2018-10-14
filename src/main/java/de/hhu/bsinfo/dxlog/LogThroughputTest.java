@@ -64,6 +64,7 @@ public final class LogThroughputTest {
     private static DXLog ms_dxlog;
 
     private static DXLogConfig ms_context;
+    private static String ms_logDirectory;
 
     private static String ms_workload;
     private static int ms_updates;
@@ -266,28 +267,34 @@ public final class LogThroughputTest {
      *         the program arguments.
      */
     private static void processArgs(final String[] p_arguments) {
-        if (p_arguments.length != 9) {
+        if (p_arguments.length != 10) {
             System.out.println("To execute benchmark:");
-            System.out.println("Args: " + "<config_file> <backup range size> <chunk count> <chunk size> <batch size> " +
+            System.out.println("Args: " +
+                    "<config_file> <log directory> <backup range size> <chunk count> <chunk size> <batch size> " +
                     "<workload (none, sequential, random, zipf or hotncold)> <number of updates> <enable recovery> " +
                     "<use recovery dummy>");
             System.exit(-1);
         }
 
-        ms_backupRangeSize = Integer.parseInt(p_arguments[1]);
-        ms_chunkCount = Integer.parseInt(p_arguments[2]);
-        ms_size = Integer.parseInt(p_arguments[3]);
-        ms_batchSize = Integer.parseInt(p_arguments[4]);
+        ms_logDirectory = p_arguments[1];
+        if (!new File(ms_logDirectory).exists()) {
+            LOGGER.error("Directory \"%s\" does not exist!", ms_logDirectory);
+        }
 
-        ms_workload = p_arguments[5];
+        ms_backupRangeSize = Integer.parseInt(p_arguments[2]);
+        ms_chunkCount = Integer.parseInt(p_arguments[3]);
+        ms_size = Integer.parseInt(p_arguments[4]);
+        ms_batchSize = Integer.parseInt(p_arguments[5]);
+
+        ms_workload = p_arguments[6];
         if (!"none".equals(ms_workload) && !"sequential".equals(ms_workload) && !"random".equals(ms_workload) &&
                 !"zipf".equals(ms_workload) && !"hotncold".equals(ms_workload)) {
             System.out.println("Invalid workload! Starting with \"none\".");
             ms_workload = "none";
         }
-        ms_updates = Integer.parseInt(p_arguments[6]);
-        ms_recoveryEnabled = Boolean.parseBoolean(p_arguments[7]);
-        ms_recoveryDummy = Boolean.parseBoolean(p_arguments[8]);
+        ms_updates = Integer.parseInt(p_arguments[7]);
+        ms_recoveryEnabled = Boolean.parseBoolean(p_arguments[8]);
+        ms_recoveryDummy = Boolean.parseBoolean(p_arguments[9]);
 
         System.out.printf("Parameters: access_mode=%s chunk_count=%d chunk_size=%d batch_size=%d " +
                         "workload=%s updates=%d recovery=%b dummy=%b timestamps=%s segment_size=%d " +
@@ -304,8 +311,7 @@ public final class LogThroughputTest {
      * Setup files and classes for the benchmark.
      */
     private static void setup() {
-        String pathLogFiles = "/media/ssd/dxram_log/";
-        File[] files = new File(pathLogFiles).listFiles();
+        File[] files = new File(ms_logDirectory).listFiles();
         if (files != null) {
             for (File file : files) {
                 if (!file.isDirectory()) {
@@ -327,7 +333,7 @@ public final class LogThroughputTest {
                 op = new RecoveryDummyOperation();
             }
         }
-        ms_dxlog = new DXLog(ms_context, nodeID, pathLogFiles, ms_backupRangeSize, op);
+        ms_dxlog = new DXLog(ms_context, nodeID, ms_logDirectory, ms_backupRangeSize, op);
     }
 
     /**
