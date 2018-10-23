@@ -5,7 +5,7 @@ of the department of computer science of the Heinrich-Heine-University
 Düsseldorf. DXLog is stand-alone and can be used with existing Java applications
 but is also part of the distributed in-memory key-value store [DXRAM](https://github.com/hhu-bsinfo/dxram).
 
-DXLog is ... TODO
+DXLog allows logging of many small (and also large) objects to disk in a very efficient manner. DXLog is a local component which either receives objects to log by passing a ByteBuffer storing one or more objects or by passing a DXNet message which is deserialized according to the message type (for more information see [DXNet](https://github.com/hhu-bsinfo/dxnet). DXLog is not responsible for the replication scheme, object affiliation or sending/receiving of objects. If you are interested in this, have a look at DXRAM. DXLog automatically assigns version numbers to objects for validation purposes as logs are reorganized periodically or on demand. Furthermore, DXLog provides a very fast object recovery enabling reading, validating, error-checking millions of objects per second stored in logs on disk.
 
 # Important
 DXLog is a research project that's under development. We do not
@@ -16,6 +16,7 @@ contributions.
 
 # Features
 * A novel two-stage logging approach enabling fast recovery and providing high throughput while being memory efficient
+* A backup-side version control based on epochs to reduce memory consumption without impairing lookup performance
 * A highly concurrent log cleaning concept designed for handling many small data objects
 * A fast parallel recovery of servers storing hundreds of millions of small data objects
 * Optimized for SSDs
@@ -60,8 +61,7 @@ Deploy the build output to your cluster and run DXLog by executing the script *d
 If there is no configuration file, it will create one with default values before starting the benchmark.
 
 The hard drive access can be configured to use either a RandomAccessFile accessing files in your file system (directory
-configurable, see "Usage information"), O_Direct bypassing the kernel's page cache or by writing to and reading from
-a raw device. Using a raw device requires several steps for preparation:
+configurable, see "Usage information"), O_Direct bypassing the kernel's page cache (still using the file system) or by writing to and reading from a raw device. Using a raw device requires several steps for preparation:
 1. Use an empty partition
 2. If executed in nspawn container: add "--capability=CAP_SYS_MODULE --bind-ro=/lib/modules" to systemd-nspawn command in boot script
 3. Get root access
@@ -100,7 +100,7 @@ For example, to run workload random, log 100000 chunks, update 1000000 chunks, 3
 
 __When using this benchmark for evaluation make sure logs from previous runs are removed from disk and space is freed:__
 ```
-rm /media/ssd/dxram_log/* && sudo fstrim -v /media/ssd/ && sleep 2 && ./bin/dxlog ...
+rm /media/ssd/dxram_log/* && sudo fstrim -v /media/ssd/ && sleep 2 && ./bin/dxlog ./config/dxlog.json /media/ssd/dxram_log/ ...
 ```
 
 # License
