@@ -333,7 +333,8 @@ public final class LogThroughputTest {
                 op = new RecoveryDummyOperation();
             }
         }
-        ms_dxlog = new DXLog(ms_context, nodeID, ms_logDirectory, ms_backupRangeSize, op);
+        ms_dxlog = new DXLog(ms_context, System.getProperty("user.dir") + "/jni", nodeID, ms_logDirectory,
+                ms_backupRangeSize, op);
     }
 
     /**
