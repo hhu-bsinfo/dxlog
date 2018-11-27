@@ -50,11 +50,14 @@ import de.hhu.bsinfo.dxutils.stats.TimePool;
  * @author Kevin Beineke, kevin.beineke@hhu.de, 24.09.2018
  */
 public final class DXLog {
-
     private static final Logger LOGGER = LogManager.getFormatterLogger(DXLog.class.getSimpleName());
 
     private static final TimePool SOP_LOG_BATCH = new TimePool(DXLog.class, "LogBatch");
     private static final TimePool SOP_PUT_ENTRY_AND_HEADER = new TimePool(DXLog.class, "PutEntryAndHeader");
+
+    private static final String LIB_CRC_GEN = "libJNINativeCRCGenerator.so";
+    private static final String LIB_FILE_RAW = "libJNIFileRaw.so";
+    private static final String LIB_FILE_ODIRECT = "libJNIFileDirect.so";
 
     public static final boolean TWO_LEVEL_LOGGING_ACTIVATED = true;
 
@@ -85,6 +88,8 @@ public final class DXLog {
      *
      * @param p_config
      *         the dxlog configuration
+     * @param p_pathJniDirectory
+     *         Path to directory containing compiled native libraries (JNI)
      * @param p_backupDir
      *         the directory to store logs in
      * @param p_backupRangeSize
@@ -92,8 +97,8 @@ public final class DXLog {
      * @param p_dxmemRecoveryOp
      *         the DXMem Recovery operation to store recovered chunk in memory management
      */
-    public DXLog(final DXLogConfig p_config, final short p_nodeID, final String p_backupDir,
-            final int p_backupRangeSize, final Recovery p_dxmemRecoveryOp) {
+    public DXLog(final DXLogConfig p_config, final String p_pathJniDirectory, final short p_nodeID,
+            final String p_backupDir, final int p_backupRangeSize, final Recovery p_dxmemRecoveryOp) {
         if (p_config.verify(p_backupRangeSize)) {
             m_config = p_config;
 
@@ -103,29 +108,7 @@ public final class DXLog {
             m_backupDirectory = p_backupDir;
             m_secondaryLogSize = p_backupRangeSize * 2;
 
-            // Load jni modules
-            String cwd = System.getProperty("user.dir");
-            String path = cwd + "/jni/libJNINativeCRCGenerator.so";
-            System.load(path);
-
-            if (m_mode == HarddriveAccessMode.ODIRECT) {
-                path = cwd + "/jni/libJNIFileDirect.so";
-                System.load(path);
-            } else if (m_mode == HarddriveAccessMode.RAW_DEVICE) {
-                path = cwd + "/jni/libJNIFileRaw.so";
-                System.load(path);
-                if (JNIFileRaw.prepareRawDevice(m_config.getRawDevicePath(), 0) == -1) {
-                    LOGGER.debug("\n     * Steps to prepare a raw device:\n" + "     * 1) Use an empty partition\n" +
-                            "     * 2) If executed in nspawn container: add \"--capability=CAP_SYS_MODULE " +
-                            "--bind-ro=/lib/modules\" to systemd-nspawn command in boot script\n" +
-                            "     * 3) Get root access\n" + "     * 4) mkdir /dev/raw\n" + "     * 5) cd /dev/raw/\n" +
-                            "     * 6) mknod raw1 c 162 1\n" + "     * 7) modprobe raw\n" +
-                            "     * 8) If /dev/raw/rawctl was not created: mknod /dev/raw/rawctl c 162 0\n" +
-                            "     * 9) raw /dev/raw/raw1 /dev/*empty partition*\n" +
-                            "     * 10) Execute DXRAM as root user (sudo -P for nfs)");
-                    throw new RuntimeException("Raw device could not be prepared!");
-                }
-            }
+            loadJNIModules(p_pathJniDirectory);
 
             purgeLogDirectory(m_backupDirectory);
 
@@ -134,6 +117,33 @@ public final class DXLog {
             m_dxmemRecoveryOp = p_dxmemRecoveryOp;
         } else {
             LOGGER.error("Configuration invalid.");
+        }
+    }
+
+    private void loadJNIModules(final String p_pathJNIDir) {
+        // Load jni modules
+        if (!new File(p_pathJNIDir).exists()) {
+            throw new RuntimeException("Directory for native libraries (JNI) does not exist: " + p_pathJNIDir);
+        }
+
+        System.load(p_pathJNIDir + '/' + LIB_CRC_GEN);
+
+        if (m_mode == HarddriveAccessMode.ODIRECT) {
+            System.load(p_pathJNIDir + '/' + LIB_FILE_ODIRECT);
+        } else if (m_mode == HarddriveAccessMode.RAW_DEVICE) {
+            System.load(p_pathJNIDir + '/' + LIB_FILE_RAW);
+
+            if (JNIFileRaw.prepareRawDevice(m_config.getRawDevicePath(), 0) == -1) {
+                LOGGER.debug("\n     * Steps to prepare a raw device:\n" + "     * 1) Use an empty partition\n" +
+                        "     * 2) If executed in nspawn container: add \"--capability=CAP_SYS_MODULE " +
+                        "--bind-ro=/lib/modules\" to systemd-nspawn command in boot script\n" +
+                        "     * 3) Get root access\n" + "     * 4) mkdir /dev/raw\n" + "     * 5) cd /dev/raw/\n" +
+                        "     * 6) mknod raw1 c 162 1\n" + "     * 7) modprobe raw\n" +
+                        "     * 8) If /dev/raw/rawctl was not created: mknod /dev/raw/rawctl c 162 0\n" +
+                        "     * 9) raw /dev/raw/raw1 /dev/*empty partition*\n" +
+                        "     * 10) Execute DXRAM as root user (sudo -P for nfs)");
+                throw new RuntimeException("Raw device could not be prepared!");
+            }
         }
     }
 
