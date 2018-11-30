@@ -121,17 +121,19 @@ public final class DXLog {
     }
 
     private void loadJNIModules(final String p_pathJNIDir) {
+        File dir = new File(p_pathJNIDir);
+
         // Load jni modules
-        if (!new File(p_pathJNIDir).exists()) {
-            throw new RuntimeException("Directory for native libraries (JNI) does not exist: " + p_pathJNIDir);
+        if (!dir.exists()) {
+            throw new RuntimeException("Directory for native libraries (JNI) does not exist: " + dir.getAbsolutePath());
         }
 
-        System.load(p_pathJNIDir + '/' + LIB_CRC_GEN);
+        System.load(dir.getAbsolutePath() + '/' + LIB_CRC_GEN);
 
         if (m_mode == HarddriveAccessMode.ODIRECT) {
-            System.load(p_pathJNIDir + '/' + LIB_FILE_ODIRECT);
+            System.load(dir.getAbsolutePath() + '/' + LIB_FILE_ODIRECT);
         } else if (m_mode == HarddriveAccessMode.RAW_DEVICE) {
-            System.load(p_pathJNIDir + '/' + LIB_FILE_RAW);
+            System.load(dir.getAbsolutePath() + '/' + LIB_FILE_RAW);
 
             if (JNIFileRaw.prepareRawDevice(m_config.getRawDevicePath(), 0) == -1) {
                 LOGGER.debug("\n     * Steps to prepare a raw device:\n" + "     * 1) Use an empty partition\n" +
