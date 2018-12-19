@@ -287,14 +287,14 @@ public final class BackupRangeCatalog {
                         try {
                             secondaryLogBuffers[j].close();
                         } catch (final IOException e) {
-                            LOGGER.error("Could not close secondary log for NID=%d and RID=%d", (short) i, (short) j);
+                            LOGGER.error("Could not close secondary log for NID=%X and RID=%d", (short) i, (short) j);
                         }
                     }
                     if (versionBuffers[j] != null) {
                         try {
                             versionBuffers[j].close();
                         } catch (final IOException e) {
-                            LOGGER.error("Could not close version log for NID=%d and RID=%d", (short) i, (short) j);
+                            LOGGER.error("Could not close version log for NID=%X and RID=%d", (short) i, (short) j);
                         }
                     }
                 }
